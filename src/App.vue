@@ -8,7 +8,7 @@ import { useWeather } from './composables/useWeather';
 import type { GeoLocation } from './types/weather';
 
 const { weather, loading, error, fetchWeather } = useWeather();
-const locationName = ref('Berlin'); // Default
+const locationName = ref('Oslo'); // Default
 
 const handleSelectLocation = async (loc: GeoLocation) => {
   locationName.value = loc.name;
@@ -17,7 +17,7 @@ const handleSelectLocation = async (loc: GeoLocation) => {
 
 // Initial fetch (Berlin)
 onMounted(() => {
-  fetchWeather(52.52, 13.41);
+  fetchWeather(59.91, 10.75);
 });
 </script>
 
@@ -27,6 +27,7 @@ onMounted(() => {
     <WeatherBackground 
       :weather-code="weather?.current.weatherCode"
       :is-day="weather?.current.isDay"
+      :temperature="weather?.current.temp"
     />
     
     <div class="content-wrapper">
@@ -50,7 +51,7 @@ onMounted(() => {
         <div v-else-if="error" class="state-container error-state">
           <div class="error-icon">⚠️</div>
           <p class="state-text">{{ error }}</p>
-          <button @click="() => fetchWeather(52.52, 13.41)" class="retry-btn">
+          <button @click="() => fetchWeather(59.91, 10.75)" class="retry-btn">
             Try Again
           </button>
         </div>

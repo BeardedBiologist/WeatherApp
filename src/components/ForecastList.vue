@@ -68,7 +68,7 @@ const maxTemp = computed(() => Math.max(...allTemps.value));
 
         <!-- Weather Icon -->
         <div class="day-icon">
-          <WeatherIcon :weather-code="day.code" :is-day="1" size="sm" />
+          <WeatherIcon :weather-code="day.code" :is-day="1" :temperature="day.tempMax" size="sm" />
         </div>
 
         <!-- Temperature Display -->
@@ -135,10 +135,10 @@ const maxTemp = computed(() => Math.max(...allTemps.value));
   align-items: center;
   gap: 1rem;
   padding: 1rem 1.25rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(20, 25, 35, 0.5);
   backdrop-filter: blur(16px);
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.3s ease;
   animation: fadeIn 0.5s ease-out both;
 }
@@ -149,10 +149,10 @@ const maxTemp = computed(() => Math.max(...allTemps.value));
 }
 
 .forecast-card:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(30, 40, 55, 0.65);
   transform: translateX(8px);
-  border-color: rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 /* Day Header */
@@ -160,12 +160,16 @@ const maxTemp = computed(() => Math.max(...allTemps.value));
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  min-width: 0;
 }
 
 .day-name {
   font-weight: 700;
   font-size: 1.1rem;
   color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .day-date {
@@ -189,6 +193,7 @@ const maxTemp = computed(() => Math.max(...allTemps.value));
   grid-template-columns: 35px 1fr 35px;
   align-items: center;
   gap: 0.75rem;
+  min-width: 0;
 }
 
 .temp-high {
@@ -255,9 +260,47 @@ const maxTemp = computed(() => Math.max(...allTemps.value));
   }
 }
 
+@media (max-width: 600px) {
+  .forecast-list {
+    gap: 0.6rem;
+  }
+
+  .forecast-card {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "header icon"
+      "temps temps"
+      "desc desc";
+    align-items: start;
+    row-gap: 0.5rem;
+    column-gap: 0.75rem;
+    padding: 0.9rem 1rem;
+  }
+
+  .day-header { grid-area: header; }
+  .day-icon { grid-area: icon; justify-self: end; }
+  .day-temps { grid-area: temps; }
+  .day-desc { 
+    grid-area: desc;
+    display: block;
+    text-align: left;
+    white-space: normal;
+    font-size: 0.8rem;
+    line-height: 1.3;
+  }
+
+  .day-temps {
+    grid-template-columns: 34px 1fr 34px;
+  }
+
+  .temp-bar-container {
+    height: 7px;
+  }
+}
+
 @media (max-width: 400px) {
   .forecast-card {
-    grid-template-columns: 60px 40px 1fr;
+    grid-template-columns: 1fr auto;
     gap: 0.5rem;
     padding: 0.75rem;
   }

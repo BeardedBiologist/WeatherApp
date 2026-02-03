@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "portfolio-3a73b"
+  },
+  "targets": {
+    "portfolio-3a73b": {
+      "hosting": {
+        "weather": [
+          "weather-dashboard-3a73b"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

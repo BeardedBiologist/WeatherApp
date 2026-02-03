@@ -4,6 +4,7 @@ import { computed } from 'vue';
 const props = defineProps<{
   weatherCode?: number;
   isDay?: number;
+  temperature?: number; // Add temperature for ice effects
 }>();
 
 // Weather condition types
@@ -34,9 +35,28 @@ const weatherCondition = computed<WeatherType>(() => {
 
 const isDaytime = computed(() => props.isDay === 1);
 
+const snowIntensity = computed<'light' | 'moderate' | 'heavy'>(() => {
+  const code = props.weatherCode ?? 0;
+  if (code === 71 || code === 77 || code === 85) return 'light';
+  if (code === 73) return 'moderate';
+  if (code === 75 || code === 86) return 'heavy';
+  return 'light';
+});
+
+// Check if it's freezing (show ice/frost even if not snowing)
+const isFreezing = computed(() => props.temperature !== undefined && props.temperature <= 2);
+
 const backgroundClass = computed(() => {
   const condition = weatherCondition.value;
   const day = isDaytime.value;
+  
+  // Override background for freezing temperatures
+  if (isFreezing.value && condition === 'clear') {
+    return day ? 'bg-sunny-freezing' : 'bg-night-freezing';
+  }
+  if (isFreezing.value && condition === 'cloudy') {
+    return 'bg-cloudy-freezing';
+  }
   
   switch (condition) {
     case 'clear':
@@ -44,14 +64,19 @@ const backgroundClass = computed(() => {
     case 'cloudy':
       return day ? 'bg-cloudy' : 'bg-night-cloudy';
     case 'rain':
+      // Freezing rain effect
+      if (isFreezing.value) return 'bg-freezing-rain';
       return 'bg-rainy';
     case 'snow':
       return 'bg-snow';
     case 'thunder':
+      if (isFreezing.value) return 'bg-thunder-snow';
       return 'bg-thunder';
     case 'fog':
+      if (isFreezing.value) return 'bg-freezing-fog';
       return 'bg-fog';
     default:
+      if (isFreezing.value) return 'bg-snow';
       return 'bg-default';
   }
 });
@@ -65,14 +90,25 @@ const rainDrops = Array.from({ length: 100 }, (_, i) => ({
   opacity: 0.3 + Math.random() * 0.5
 }));
 
-const snowFlakes = Array.from({ length: 50 }, (_, i) => ({
-  id: i,
-  left: `${Math.random() * 100}%`,
-  delay: `${Math.random() * 5}s`,
-  duration: `${4 + Math.random() * 6}s`,
-  size: 4 + Math.random() * 8,
-  sway: Math.random() > 0.5 ? 1 : -1
-}));
+const snowFlakes = computed(() => {
+  const intensity = snowIntensity.value;
+  const count = intensity === 'light' ? 30 : intensity === 'moderate' ? 50 : 80;
+  const sizeBase = intensity === 'light' ? 2 : intensity === 'moderate' ? 3 : 4;
+  const sizeVar = intensity === 'light' ? 3 : intensity === 'moderate' ? 4 : 6;
+  const durBase = intensity === 'light' ? 6 : intensity === 'moderate' ? 4.5 : 3.5;
+  const durVar = intensity === 'light' ? 5 : intensity === 'moderate' ? 4 : 3;
+  const opacityBase = intensity === 'light' ? 0.45 : intensity === 'moderate' ? 0.7 : 0.9;
+
+  return Array.from({ length: count }, (_, i) => ({
+    id: i,
+    left: `${Math.random() * 100}%`,
+    delay: `${Math.random() * 6}s`,
+    duration: `${durBase + Math.random() * durVar}s`,
+    size: sizeBase + Math.random() * sizeVar,
+    sway: Math.random() > 0.5 ? 1 : -1,
+    opacity: opacityBase + Math.random() * 0.1
+  }));
+});
 
 const clouds = Array.from({ length: 6 }, (_, i) => ({
   id: i,
@@ -92,13 +128,25 @@ const stars = Array.from({ length: 100 }, (_, i) => ({
   duration: `${2 + Math.random() * 3}s`
 }));
 
-const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
+const iceCrystals = Array.from({ length: 15 }, (_, i) => ({
   id: i,
   left: `${Math.random() * 100}%`,
   top: `${Math.random() * 100}%`,
   delay: `${Math.random() * 4}s`,
   duration: `${3 + Math.random() * 4}s`,
-  size: 10 + Math.random() * 20
+  size: 8 + Math.random() * 20
+}));
+
+
+
+// Blowing snow particles for freezing conditions
+const blowingSnow = Array.from({ length: 20 }, (_, i) => ({
+  id: i,
+  left: `${Math.random() * 100}%`,
+  top: `${30 + Math.random() * 70}%`,
+  delay: `${Math.random() * 3}s`,
+  duration: `${2 + Math.random() * 3}s`,
+  size: 2 + Math.random() * 4
 }));
 </script>
 
@@ -108,7 +156,7 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
     <div class="gradient-overlay"></div>
     
     <!-- Stars (night only) -->
-    <div v-if="!isDaytime && weatherCondition !== 'thunder'" class="stars-container">
+    <div v-if="(!isDaytime && weatherCondition !== 'thunder') || isFreezing" class="stars-container">
       <div 
         v-for="star in stars" 
         :key="`star-${star.id}`"
@@ -124,8 +172,8 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
       ></div>
     </div>
 
-    <!-- Sun with rays (sunny day) -->
-    <div v-if="weatherCondition === 'clear' && isDaytime" class="sun-container">
+    <!-- Sun with rays (sunny day, not freezing) -->
+    <div v-if="weatherCondition === 'clear' && isDaytime && !isFreezing" class="sun-container">
       <div class="sun">
         <div class="sun-rays"></div>
         <div class="sun-core"></div>
@@ -133,8 +181,15 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
       <div class="heat-haze"></div>
     </div>
 
+    <!-- Cold Sun (weak, pale) -->
+    <div v-if="weatherCondition === 'clear' && isDaytime && isFreezing" class="sun-container cold">
+      <div class="sun-weak">
+        <div class="sun-core-weak"></div>
+      </div>
+    </div>
+
     <!-- Moon (clear night) -->
-    <div v-if="weatherCondition === 'clear' && !isDaytime" class="moon-container">
+    <div v-if="weatherCondition === 'clear' && !isDaytime && !isFreezing" class="moon-container">
       <div class="moon">
         <div class="moon-crater crater-1"></div>
         <div class="moon-crater crater-2"></div>
@@ -143,14 +198,28 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
       <div class="moon-glow"></div>
     </div>
 
+    <!-- Cold Moon (freezing night) -->
+    <div v-if="(weatherCondition === 'clear' && !isDaytime && isFreezing) || (isFreezing && !isDaytime)" class="moon-container cold">
+      <div class="moon frozen">
+        <div class="moon-crater crater-1"></div>
+        <div class="moon-crater crater-2"></div>
+        <div class="frost-on-moon"></div>
+      </div>
+      <div class="moon-glow cold"></div>
+    </div>
+
     <!-- Clouds -->
-    <div v-if="['cloudy', 'rain', 'snow'].includes(weatherCondition) || (weatherCondition === 'clear' && isDaytime)" 
+    <div v-if="['cloudy', 'rain', 'snow'].includes(weatherCondition) || (weatherCondition === 'clear' && isDaytime) || (isFreezing && weatherCondition !== 'thunder')" 
          class="clouds-container">
       <div 
         v-for="cloud in clouds" 
         :key="`cloud-${cloud.id}`"
         class="cloud"
-        :class="{ 'dark': weatherCondition === 'rain' || weatherCondition === 'thunder', 'fluffy': weatherCondition === 'clear' }"
+        :class="{ 
+          'dark': weatherCondition === 'rain' || weatherCondition === 'thunder', 
+          'fluffy': weatherCondition === 'clear',
+          'frozen': isFreezing
+        }"
         :style="{
           top: cloud.top,
           animationDelay: cloud.delay,
@@ -171,6 +240,7 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
         v-for="drop in rainDrops" 
         :key="`rain-${drop.id}`"
         class="rain-drop"
+        :class="{ 'freezing': isFreezing }"
         :style="{
           left: drop.left,
           animationDelay: drop.delay,
@@ -183,6 +253,7 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
         v-for="i in 20" 
         :key="`splash-${i}`"
         class="rain-splash"
+        :class="{ 'frozen': isFreezing }"
         :style="{
           left: `${Math.random() * 100}%`,
           bottom: `${Math.random() * 20}%`,
@@ -191,8 +262,8 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
       ></div>
     </div>
 
-    <!-- Snow Particles -->
-    <div v-if="weatherCondition === 'snow'" class="snow-container">
+    <!-- Snow Particles (when snowing) -->
+    <div v-if="weatherCondition === 'snow'" :class="['snow-container', `snow-${snowIntensity}`]">
       <div 
         v-for="flake in snowFlakes" 
         :key="`snow-${flake.id}`"
@@ -203,15 +274,33 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
           animationDelay: flake.delay,
           animationDuration: flake.duration,
           '--sway': flake.sway,
-          fontSize: `${flake.size}px`
+          fontSize: `${flake.size}px`,
+          opacity: flake.opacity
         }"
       >
         {{ ['❄', '❅', '❆', '✦', '✧', '•'][flake.id % 6] }}
       </div>
     </div>
 
-    <!-- Ice Crystals (for snow) -->
-    <div v-if="weatherCondition === 'snow'" class="ice-container">
+    <!-- Blowing Snow (when freezing but not snowing) -->
+    <div v-if="isFreezing && weatherCondition !== 'snow'" class="blowing-snow-container">
+      <div 
+        v-for="particle in blowingSnow" 
+        :key="`blow-${particle.id}`"
+        class="blowing-particle"
+        :style="{
+          left: particle.left,
+          top: particle.top,
+          animationDelay: particle.delay,
+          animationDuration: particle.duration,
+          width: `${particle.size}px`,
+          height: `${particle.size}px`
+        }"
+      ></div>
+    </div>
+
+    <!-- Ice Crystals (for freezing temps) -->
+    <div v-if="isFreezing" class="ice-container">
       <div 
         v-for="crystal in iceCrystals" 
         :key="`ice-${crystal.id}`"
@@ -226,11 +315,42 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
       >✦</div>
     </div>
 
+    <!-- Frost Patterns on Screen Edges -->
+    <div v-if="isFreezing" class="frost-edges">
+      <svg class="frost-svg frost-top" viewBox="0 0 1200 100" preserveAspectRatio="none">
+        <path class="frost-path" d="M0,100 L0,50 Q100,20 200,60 T400,40 T600,70 T800,30 T1000,50 T1200,40 L1200,100 Z" />
+      </svg>
+      <svg class="frost-svg frost-bottom" viewBox="0 0 1200 100" preserveAspectRatio="none">
+        <path class="frost-path" d="M0,0 L0,50 Q100,80 200,40 T400,60 T600,30 T800,70 T1000,50 T1200,60 L1200,0 Z" />
+      </svg>
+      <svg class="frost-svg frost-left" viewBox="0 0 100 800" preserveAspectRatio="none">
+        <path class="frost-path" d="M100,0 L50,0 Q20,100 60,200 T40,400 T70,600 T50,800 L100,800 Z" />
+      </svg>
+      <svg class="frost-svg frost-right" viewBox="0 0 100 800" preserveAspectRatio="none">
+        <path class="frost-path" d="M0,0 L50,0 Q80,100 40,200 T60,400 T30,600 T50,800 L0,800 Z" />
+      </svg>
+    </div>
+
     <!-- Fog Layers -->
-    <div v-if="weatherCondition === 'fog' || weatherCondition === 'cloudy'" class="fog-container">
+    <div v-if="weatherCondition === 'fog' || (weatherCondition === 'cloudy' && isFreezing)" class="fog-container">
       <div class="fog-layer fog-layer-1"></div>
       <div class="fog-layer fog-layer-2"></div>
       <div class="fog-layer fog-layer-3"></div>
+    </div>
+
+    <!-- Freezing Fog (ice crystals in fog) -->
+    <div v-if="weatherCondition === 'fog' && isFreezing" class="freezing-fog-container">
+      <div 
+        v-for="i in 30" 
+        :key="`ice-fog-${i}`"
+        class="ice-fog-particle"
+        :style="{
+          left: `${Math.random() * 100}%`,
+          top: `${Math.random() * 100}%`,
+          animationDelay: `${Math.random() * 4}s`,
+          animationDuration: `${5 + Math.random() * 5}s`
+        }"
+      >❄</div>
     </div>
 
     <!-- Lightning -->
@@ -240,16 +360,38 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
       <div class="lightning lightning-3"></div>
     </div>
 
-    <!-- Frost edges (for snow/ice) -->
-    <div v-if="weatherCondition === 'snow'" class="frost-edges">
-      <div class="frost-top"></div>
-      <div class="frost-bottom"></div>
-      <div class="frost-left"></div>
-      <div class="frost-right"></div>
+    <!-- Snow Thunder (thundersnow) -->
+    <div v-if="weatherCondition === 'thunder' && isFreezing" class="snow-thunder-container">
+      <div 
+        v-for="i in 30" 
+        :key="`thunder-snow-${i}`"
+        class="thunder-snowflake"
+        :style="{
+          left: `${Math.random() * 100}%`,
+          animationDelay: `${Math.random() * 3}s`,
+          animationDuration: `${2 + Math.random() * 2}s`
+        }"
+      >❄</div>
+    </div>
+
+    <!-- Breath condensation effect (extreme cold) -->
+    <div v-if="isFreezing && isDaytime" class="breath-container">
+      <div 
+        v-for="i in 5" 
+        :key="`breath-${i}`"
+        class="breath-cloud"
+        :style="{
+          left: `${20 + i * 15}%`,
+          animationDelay: `${i * 2}s`
+        }"
+      ></div>
     </div>
 
     <!-- Dark vignette overlay -->
     <div class="vignette-overlay"></div>
+    
+    <!-- Extra cold vignette -->
+    <div v-if="isFreezing" class="cold-vignette"></div>
   </div>
 </template>
 
@@ -272,11 +414,23 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
 .bg-sunny { 
   background: linear-gradient(160deg, #f6d365 0%, #fda085 30%, #f5576c 100%); 
 }
+/* Freezing sunny - cold, pale winter sun (darker for contrast) */
+.bg-sunny-freezing { 
+  background: linear-gradient(160deg, #8fa5b5 0%, #7a94a8 40%, #6b8a9e 100%); 
+}
 .bg-night-clear { 
   background: linear-gradient(to bottom, #0c0c1a 0%, #1a1a3e 50%, #2d1b4e 100%); 
 }
+/* Freezing night - deep icy blue-black */
+.bg-night-freezing { 
+  background: linear-gradient(to bottom, #0a1525 0%, #152035 50%, #1f2d42 100%); 
+}
 .bg-cloudy { 
   background: linear-gradient(160deg, #8e9eab 0%, #5D6D7E 50%, #566573 100%); 
+}
+/* Freezing cloudy - dark gray ice */
+.bg-cloudy-freezing { 
+  background: linear-gradient(160deg, #5a6a7a 0%, #4a5a6a 50%, #3d4d5d 100%); 
 }
 .bg-night-cloudy { 
   background: linear-gradient(to bottom, #1a1a2e 0%, #16213e 50%, #0f3460 100%); 
@@ -284,14 +438,26 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
 .bg-rainy { 
   background: linear-gradient(160deg, #203a43 0%, #2c5364 40%, #1a252f 100%); 
 }
+/* Freezing rain - dark ice storm */
+.bg-freezing-rain { 
+  background: linear-gradient(160deg, #2a3545 0%, #354555 40%, #2a3a4a 100%); 
+}
 .bg-snow { 
   background: linear-gradient(160deg, #e6e9f0 0%, #eef1f5 30%, #d4d9e0 70%, #a8b5c4 100%); 
 }
 .bg-thunder { 
   background: linear-gradient(160deg, #141e30 0%, #243b55 40%, #0f1419 100%); 
 }
+/* Thunder snow - dark stormy */
+.bg-thunder-snow { 
+  background: linear-gradient(160deg, #1f2f3f 0%, #2a3a4a 40%, #152535 100%); 
+}
 .bg-fog { 
   background: linear-gradient(160deg, #757f9a 0%, #d7dde8 50%, #9ba4b0 100%); 
+}
+/* Freezing fog - dark hoarfrost */
+.bg-freezing-fog { 
+  background: linear-gradient(160deg, #5a6a7a 0%, #6a7a8a 50%, #4a5a6a 100%); 
 }
 
 .gradient-overlay {
@@ -313,6 +479,17 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
   background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.4) 100%);
   pointer-events: none;
   z-index: 100;
+}
+
+.cold-vignette {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(150, 180, 210, 0.08) 100%);
+  pointer-events: none;
+  z-index: 101;
 }
 
 /* ===== STARS ===== */
@@ -346,6 +523,11 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
   z-index: 2;
 }
 
+.sun-container.cold {
+  top: 15%;
+  right: 15%;
+}
+
 .sun {
   position: relative;
   width: 120px;
@@ -366,6 +548,33 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
     0 0 80px rgba(255, 150, 50, 0.6),
     0 0 120px rgba(255, 100, 0, 0.4);
   animation: sunPulse 4s ease-in-out infinite;
+}
+
+/* Weak cold sun */
+.sun-weak {
+  position: relative;
+  width: 80px;
+  height: 80px;
+}
+
+.sun-core-weak {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60px;
+  height: 60px;
+  background: radial-gradient(circle, #fff9e6 0%, #f5e6d0 50%, #e8dcc0 100%);
+  border-radius: 50%;
+  box-shadow: 
+    0 0 30px rgba(255, 240, 200, 0.4),
+    0 0 60px rgba(255, 220, 180, 0.2);
+  animation: sunPulseCold 5s ease-in-out infinite;
+}
+
+@keyframes sunPulseCold {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+  50% { transform: translate(-50%, -50%) scale(1.03); opacity: 0.9; }
 }
 
 .sun-rays {
@@ -452,6 +661,10 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
   z-index: 2;
 }
 
+.moon-container.cold {
+  top: 12%;
+}
+
 .moon {
   position: relative;
   width: 80px;
@@ -465,6 +678,25 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
   animation: moonGlow 4s ease-in-out infinite;
 }
 
+.moon.frozen {
+  background: radial-gradient(circle at 30% 30%, #f0f5f5 0%, #d0e0e0 50%, #b0c8d0 100%);
+  box-shadow: 
+    0 0 30px rgba(200, 230, 255, 0.4),
+    0 0 60px rgba(180, 220, 255, 0.2),
+    inset -10px -10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.frost-on-moon {
+  position: absolute;
+  top: 20%;
+  right: 25%;
+  width: 15px;
+  height: 15px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  filter: blur(2px);
+}
+
 .moon-glow {
   position: absolute;
   top: 50%;
@@ -475,6 +707,10 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
   background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
   border-radius: 50%;
   pointer-events: none;
+}
+
+.moon-glow.cold {
+  background: radial-gradient(circle, rgba(200, 230, 255, 0.2) 0%, transparent 70%);
 }
 
 .moon-crater {
@@ -494,15 +730,15 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
 .crater-2 {
   width: 10px;
   height: 10px;
-  top: 50%;
+  top: 55%;
   left: 60%;
 }
 
 .crater-3 {
   width: 8px;
   height: 8px;
-  top: 65%;
-  left: 25%;
+  top: 35%;
+  left: 65%;
 }
 
 @keyframes moonGlow {
@@ -523,6 +759,10 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
 .cloud {
   position: absolute;
   animation: cloudFloat linear infinite;
+}
+
+.cloud.frozen .cloud-part {
+  background: linear-gradient(180deg, #f5f8fa 0%, #e8eef2 100%);
 }
 
 .cloud-part {
@@ -585,6 +825,11 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
   animation: rainFall linear infinite;
 }
 
+.rain-drop.freezing {
+  background: linear-gradient(to bottom, transparent, rgba(200, 230, 255, 0.7));
+  width: 2.5px;
+}
+
 @keyframes rainFall {
   0% { transform: translateY(0) translateX(0); }
   100% { transform: translateY(105vh) translateX(-10px); }
@@ -600,10 +845,21 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
   opacity: 0;
 }
 
+.rain-splash.frozen {
+  background: rgba(200, 230, 255, 0.5);
+  animation: iceSplash 0.5s ease-out infinite;
+}
+
 @keyframes splash {
   0% { transform: scale(0); opacity: 0.8; }
   50% { transform: scale(1.5); opacity: 0.4; }
   100% { transform: scale(2); opacity: 0; }
+}
+
+@keyframes iceSplash {
+  0% { transform: scale(0) rotate(0deg); opacity: 0.8; }
+  50% { transform: scale(1.3) rotate(45deg); opacity: 0.5; }
+  100% { transform: scale(1.8) rotate(90deg); opacity: 0; }
 }
 
 /* ===== SNOW ===== */
@@ -615,6 +871,20 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
   height: 100%;
   z-index: 4;
   pointer-events: none;
+  overflow: hidden;
+  --sway-range: 28px;
+}
+
+.snow-container.snow-light {
+  --sway-range: 18px;
+}
+
+.snow-container.snow-moderate {
+  --sway-range: 28px;
+}
+
+.snow-container.snow-heavy {
+  --sway-range: 40px;
 }
 
 .snowflake {
@@ -623,7 +893,7 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
   color: white;
   opacity: 0.8;
   animation: snowFall linear infinite;
-  text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.7);
 }
 
 @keyframes snowFall {
@@ -638,7 +908,42 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
     opacity: 0.8;
   }
   100% { 
-    transform: translateY(105vh) translateX(calc(50px * var(--sway, 1))) rotate(360deg); 
+    transform: translateY(102vh) translateX(calc(var(--sway-range) * var(--sway, 1))) rotate(360deg); 
+    opacity: 0;
+  }
+}
+
+/* ===== BLOWING SNOW (for freezing temps) ===== */
+.blowing-snow-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.blowing-particle {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  animation: blowWind linear infinite;
+}
+
+@keyframes blowWind {
+  0% { 
+    transform: translateX(-20px) translateY(0); 
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  90% {
+    opacity: 0.6;
+  }
+  100% { 
+    transform: translateX(calc(100vw + 20px)) translateY(-30px); 
     opacity: 0;
   }
 }
@@ -656,14 +961,14 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
 
 .ice-crystal {
   position: absolute;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.5);
   animation: iceShimmer ease-in-out infinite;
-  text-shadow: 0 0 10px rgba(200, 230, 255, 0.8);
+  text-shadow: 0 0 8px rgba(200, 230, 255, 0.4);
 }
 
 @keyframes iceShimmer {
-  0%, 100% { opacity: 0.3; transform: scale(0.8) rotate(0deg); }
-  50% { opacity: 1; transform: scale(1.2) rotate(180deg); }
+  0%, 100% { opacity: 0.2; transform: scale(0.8) rotate(0deg); }
+  50% { opacity: 0.6; transform: scale(1.1) rotate(180deg); }
 }
 
 /* ===== FROST EDGES ===== */
@@ -678,27 +983,47 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
   overflow: hidden;
 }
 
-.frost-top, .frost-bottom, .frost-left, .frost-right {
+.frost-svg {
   position: absolute;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.3), transparent);
+  fill: rgba(255, 255, 255, 0.06);
+  filter: drop-shadow(0 0 8px rgba(200, 230, 255, 0.15));
 }
 
 .frost-top {
   top: 0;
   left: 0;
-  right: 0;
+  width: 100%;
   height: 100px;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.4), transparent);
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0,0 Q25,30 50,10 T100,0 L100,100 L0,100 Z' fill='black'/%3E%3C/svg%3E");
-  mask-size: 200px 100%;
 }
 
 .frost-bottom {
   bottom: 0;
   left: 0;
-  right: 0;
+  width: 100%;
   height: 80px;
-  background: linear-gradient(to top, rgba(255, 255, 255, 0.3), transparent);
+}
+
+.frost-left {
+  top: 0;
+  left: 0;
+  width: 80px;
+  height: 100%;
+}
+
+.frost-right {
+  top: 0;
+  right: 0;
+  width: 80px;
+  height: 100%;
+}
+
+.frost-path {
+  animation: frostShimmer 4s ease-in-out infinite;
+}
+
+@keyframes frostShimmer {
+  0%, 100% { opacity: 0.05; }
+  50% { opacity: 0.12; }
 }
 
 /* ===== FOG ===== */
@@ -752,6 +1077,35 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
 @keyframes fogDrift {
   0% { transform: translateX(-25%); }
   100% { transform: translateX(25%); }
+}
+
+/* Freezing Fog Particles */
+.freezing-fog-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.ice-fog-particle {
+  position: absolute;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 8px;
+  animation: iceFogFloat ease-in-out infinite;
+}
+
+@keyframes iceFogFloat {
+  0%, 100% { 
+    transform: translateY(0) translateX(0) rotate(0deg); 
+    opacity: 0.3;
+  }
+  50% { 
+    transform: translateY(-20px) translateX(10px) rotate(180deg); 
+    opacity: 0.6;
+  }
 }
 
 /* ===== LIGHTNING ===== */
@@ -811,5 +1165,67 @@ const iceCrystals = Array.from({ length: 20 }, (_, i) => ({
   93% { opacity: 0.2; }
   94% { opacity: 1; }
   96% { opacity: 0; }
+}
+
+/* Snow Thunder (Thundersnow) */
+.snow-thunder-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.thunder-snowflake {
+  position: absolute;
+  top: -20px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  animation: thunderSnowFall linear infinite;
+}
+
+@keyframes thunderSnowFall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.9; }
+  90% { opacity: 0.9; }
+  100% { transform: translateY(105vh) rotate(360deg); opacity: 0; }
+}
+
+/* Breath condensation in extreme cold */
+.breath-container {
+  position: absolute;
+  bottom: 20%;
+  left: 0;
+  width: 100%;
+  height: 200px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.breath-cloud {
+  position: absolute;
+  bottom: 0;
+  width: 100px;
+  height: 60px;
+  background: radial-gradient(ellipse, rgba(255,255,255,0.2) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(20px);
+  animation: breathRise 6s ease-out infinite;
+}
+
+@keyframes breathRise {
+  0% { 
+    transform: translateY(0) scaleX(1); 
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.3;
+  }
+  100% { 
+    transform: translateY(-150px) scaleX(2); 
+    opacity: 0;
+  }
 }
 </style>

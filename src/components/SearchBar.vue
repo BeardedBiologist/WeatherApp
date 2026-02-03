@@ -164,11 +164,11 @@ const handleKeydown = (e: KeyboardEvent) => {
   top: calc(100% + 0.75rem);
   left: 0;
   right: 0;
-  background: rgba(20, 20, 35, 0.95);
+  background: rgba(25, 30, 45, 0.98);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 
     0 20px 60px rgba(0, 0, 0, 0.5),
     0 0 0 1px rgba(255, 255, 255, 0.05);
